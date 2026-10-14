@@ -29,6 +29,7 @@ public class SyncService extends Service {
     private volatile boolean active;
     private CameraManager cam;
     private String camId;
+    private int maxLevel = 1;
 
     @Override public IBinder onBind(Intent i) { return null; }
 
@@ -51,7 +52,12 @@ public class SyncService extends Service {
                 CameraCharacteristics c = cam.getCameraCharacteristics(id);
                 Boolean f = c.get(CameraCharacteristics.FLASH_INFO_AVAILABLE);
                 Integer facing = c.get(CameraCharacteristics.LENS_FACING);
-                if (Boolean.TRUE.equals(f) && facing != null && facing == CameraCharacteristics.LENS_FACING_BACK) { camId = id; break; }
+                if (Boolean.TRUE.equals(f) && facing != null && facing == CameraCharacteristics.LENS_FACING_BACK) {
+                    camId = id;
+                    Integer mx = c.get(CameraCharacteristics.FLASH_INFO_STRENGTH_MAXIMUM_LEVEL);
+                    if (mx != null) maxLevel = mx;
+                    break;
+                }
             }
             MediaProjectionManager m = (MediaProjectionManager) getSystemService(MEDIA_PROJECTION_SERVICE);
             projection = m.getMediaProjection(intent.getIntExtra("code", 0), intent.getParcelableExtra("data"));
@@ -95,12 +101,24 @@ public class SyncService extends Service {
             double avg = sum / hist.length;
             long now = SystemClock.elapsedRealtime();
             if (e > avg * 1.4 && e > 2e4 && now - lastBeat > 150) {
-                torch(true); on = true; onAt = now; lastBeat = now;
+                double ratio = avg > 0 ? e / avg : 4;
+                double frac = Math.max(0, Math.min(1, (ratio - 1.4) / 2.6));
+                torchOn(frac); on = true; onAt = now; lastBeat = now;
             } else if (on && now - onAt > 90) {
                 torch(false); on = false;
             }
             sum += e - hist[hi]; hist[hi] = e; hi = (hi + 1) % hist.length;
         }
+    }
+
+    private void torchOn(double frac) {
+        try {
+            if (camId == null) return;
+            if (android.os.Build.VERSION.SDK_INT >= 33 && maxLevel > 1) {
+                int level = 1 + (int) Math.round(frac * (maxLevel - 1));
+                cam.turnOnTorchWithStrengthLevel(camId, level);
+            } else cam.setTorchMode(camId, true);
+        } catch (Exception ignored) {}
     }
 
     private void torch(boolean v) {
