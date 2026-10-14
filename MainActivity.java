@@ -9,6 +9,8 @@ import android.os.Build;
 import android.view.Gravity;
 import android.widget.Button;
 import android.widget.LinearLayout;
+import android.widget.SeekBar;
+import android.content.SharedPreferences;
 import android.widget.TextView;
 
 public class MainActivity extends Activity {
@@ -28,6 +30,25 @@ public class MainActivity extends Activity {
         btn = new Button(this);
         l.addView(info);
         l.addView(btn);
+        SharedPreferences sp = getSharedPreferences("cfg", MODE_PRIVATE);
+        TextView lbl = new TextView(this);
+        lbl.setTextSize(16);
+        lbl.setPadding(0, 64, 0, 8);
+        SeekBar sb = new SeekBar(this);
+        sb.setMax(100);
+        int cur = sp.getInt("sens", 85);
+        sb.setProgress(cur);
+        lbl.setText("Hassasiyet: " + cur + "  (yüksek = daha sık yanar)");
+        sb.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+            @Override public void onProgressChanged(SeekBar s, int p, boolean u) {
+                sp.edit().putInt("sens", p).apply();
+                lbl.setText("Hassasiyet: " + p + "  (yüksek = daha sık yanar)");
+            }
+            @Override public void onStartTrackingTouch(SeekBar s) {}
+            @Override public void onStopTrackingTouch(SeekBar s) {}
+        });
+        l.addView(lbl);
+        l.addView(sb);
         setContentView(l);
         btn.setOnClickListener(v -> {
             if (SyncService.running) {
